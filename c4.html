@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connect Four AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --blue:#1a3a6b;--blue-light:#2563c7;--gold:#f5a623;--red:#e53e3e;
+  --yellow:#f6e05e;--bg:#0a0f1e;--panel:#0f1729;--panel2:#131e35;
+  --border:#1e3a6e;--text:#e2e8f0;--text-dim:#64748b;--green:#10b981;--purple:#8b5cf6;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);font-family:'Exo 2',sans-serif;color:var(--text);min-height:100vh;overflow-x:hidden}
+.stars{position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:radial-gradient(ellipse at 20% 50%,rgba(37,99,199,.07) 0%,transparent 60%),
+             radial-gradient(ellipse at 80% 20%,rgba(139,92,246,.05) 0%,transparent 50%)}
+header{text-align:center;padding:28px 20px 10px;position:relative;z-index:2}
+header h1{font-size:clamp(2rem,5vw,3.2rem);font-weight:900;letter-spacing:.08em;text-transform:uppercase;
+  background:linear-gradient(135deg,#fff 30%,var(--gold) 70%);-webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 30px rgba(245,166,35,.4))}
+header .subtitle{font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--text-dim);letter-spacing:.2em;margin-top:4px}
+.layout{display:grid;grid-template-columns:280px 1fr 300px;gap:16px;max-width:1280px;margin:0 auto;
+  padding:16px 16px 30px;position:relative;z-index:2;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:18px}
+.panel-title{font-size:.65rem;font-family:'JetBrains Mono',monospace;letter-spacing:.25em;text-transform:uppercase;
+  color:var(--text-dim);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.panel-title::before{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--blue-light)}
+.score-bar{display:flex;width:100%;max-width:500px;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.score-player{flex:1;padding:10px 16px;display:flex;align-items:center;gap:10px;transition:background .3s}
+.score-player.active{background:rgba(37,99,199,.15)}
+.score-player.active .score-name{color:#fff}
+.score-disc{width:22px;height:22px;border-radius:50%;flex-shrink:0;box-shadow:0 0 10px currentColor}
+.disc-human{background:radial-gradient(circle at 35% 35%,#ff6b6b,var(--red));color:var(--red)}
+.disc-ai{background:radial-gradient(circle at 35% 35%,#fff176,var(--yellow));color:var(--yellow)}
+.score-name{font-weight:700;font-size:.85rem;color:var(--text-dim)}
+.score-num{font-weight:900;font-size:1.4rem;margin-left:auto;color:#fff}
+.vs-sep{padding:10px 8px;display:flex;align-items:center;color:var(--text-dim);font-weight:700;font-size:.75rem}
+.col-buttons{display:flex;gap:6px;max-width:500px;width:100%;padding:0 6px}
+.col-btn{flex:1;height:32px;background:transparent;border:1px solid transparent;border-radius:6px;cursor:pointer;
+  color:var(--text-dim);font-size:.7rem;transition:all .2s;display:flex;align-items:center;justify-content:center}
+.col-btn:hover:not(:disabled){background:rgba(37,99,199,.2);border-color:var(--blue-light);color:#fff}
+.col-btn:disabled{opacity:.2;cursor:not-allowed}
+.board-wrap{background:linear-gradient(135deg,#1e4db7 0%,#1a3a6b 100%);border-radius:18px;padding:14px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 0 3px rgba(37,99,199,.4),inset 0 1px 0 rgba(255,255,255,.1)}
+.board-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.cell{aspect-ratio:1;border-radius:50%;background:#0a0f1e;
+  box-shadow:inset 0 4px 12px rgba(0,0,0,.8),inset 0 1px 2px rgba(0,0,0,.9);position:relative}
+.cell.human{background:radial-gradient(circle at 35% 30%,#ff9999,#e53e3e 55%,#991b1b);
+  box-shadow:0 0 16px rgba(229,62,62,.6),inset 0 -3px 6px rgba(0,0,0,.3),inset 0 3px 6px rgba(255,255,255,.2);animation:dropIn .25s cubic-bezier(.22,1,.36,1)}
+.cell.ai{background:radial-gradient(circle at 35% 30%,#fffde7,#f6e05e 55%,#b7791f);
+  box-shadow:0 0 16px rgba(246,224,94,.6),inset 0 -3px 6px rgba(0,0,0,.3),inset 0 3px 6px rgba(255,255,255,.3);animation:dropIn .25s cubic-bezier(.22,1,.36,1)}
+.cell.win-cell{animation:pulse-win .6s ease-in-out infinite alternate}
+@keyframes dropIn{from{transform:scale(.5);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes pulse-win{from{box-shadow:0 0 20px rgba(255,255,255,.4);transform:scale(.95)}to{box-shadow:0 0 40px rgba(255,255,255,.9);transform:scale(1.05)}}
+.board-legs{display:flex;justify-content:space-between;padding:4px 20px 0}
+.leg{width:16px;height:10px;background:#1a3a6b;border-radius:0 0 6px 6px}
+.status-bar{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 18px;
+  font-size:.85rem;font-weight:600;text-align:center;max-width:500px;width:100%;min-height:40px;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.status-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.btn-row{display:flex;gap:10px;max-width:500px;width:100%}
+.btn{flex:1;padding:10px 16px;border:none;border-radius:10px;cursor:pointer;font-family:'Exo 2',sans-serif;
+  font-weight:700;font-size:.85rem;transition:all .2s;letter-spacing:.05em}
+.btn-primary{background:linear-gradient(135deg,var(--blue-light),#1a56db);color:#fff;box-shadow:0 4px 15px rgba(37,99,199,.4)}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(37,99,199,.5)}
+.btn-secondary{background:var(--panel2);color:var(--text-dim);border:1px solid var(--border)}
+.btn-secondary:hover{color:#fff;border-color:var(--text-dim)}
+.btn-tree{background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;box-shadow:0 4px 15px rgba(109,40,217,.4);
+  display:flex;align-items:center;justify-content:center;gap:6px}
+.btn-tree:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(109,40,217,.6)}
+.depth-control{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.depth-control label{font-size:.8rem;color:var(--text-dim)}
+.depth-control input[type=range]{flex:1;accent-color:var(--blue-light)}
+.depth-val{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--blue-light);min-width:24px;text-align:right}
+.algo-info{display:flex;flex-direction:column;gap:8px}
+.algo-stat{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:var(--panel2);border-radius:8px;font-size:.8rem}
+.algo-stat .label{color:var(--text-dim)}
+.algo-stat .val{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)}
+.heuristic-legend{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.legend-row{display:flex;justify-content:space-between;font-size:.75rem;padding:5px 8px;border-radius:6px;background:var(--panel2)}
+.legend-pattern{color:var(--text-dim)}
+.legend-score{font-family:'JetBrains Mono',monospace;font-weight:700}
+.pos{color:var(--green)}.neg{color:var(--red)}
+.explanation-feed{display:flex;flex-direction:column;gap:8px;max-height:320px;overflow-y:auto;padding-right:4px}
+.explanation-feed::-webkit-scrollbar{width:4px}
+.explanation-feed::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.exp-item{padding:10px 12px;border-radius:10px;border-left:3px solid transparent;font-size:.78rem;line-height:1.5;animation:fadeSlide .3s ease}
+@keyframes fadeSlide{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:translateX(0)}}
+.exp-item.ai-move{background:rgba(246,224,94,.05);border-color:var(--yellow)}
+.exp-item.human-move{background:rgba(229,62,62,.05);border-color:var(--red)}
+.exp-item.info{background:var(--panel2);border-color:var(--blue-light)}
+.exp-item.win{background:rgba(16,185,129,.1);border-color:var(--green)}
+.exp-tag{font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;letter-spacing:.1em;margin-bottom:4px;display:block}
+#scoreGraph{width:100%;height:160px;background:var(--panel2);border-radius:10px;border:1px solid var(--border);margin-top:6px}
+.graph-legend{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--text-dim)}
+.legend-dot{width:8px;height:8px;border-radius:50%}
+.tree-vis{background:var(--panel2);border-radius:10px;border:1px solid var(--border);padding:10px;
+  font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--text-dim);min-height:80px;max-height:130px;overflow-y:auto;line-height:1.8}
+.thinking{display:none;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:var(--yellow)}
+.thinking.show{display:flex}
+.think-dots span{display:inline-block;animation:blink 1s infinite;font-size:1rem}
+.think-dots span:nth-child(2){animation-delay:.2s}.think-dots span:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,80%,100%{opacity:0}40%{opacity:1}}
+.game-center{display:flex;flex-direction:column;align-items:center;gap:14px}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:24px;padding:40px 48px;text-align:center;
+  max-width:420px;box-shadow:0 40px 80px rgba(0,0,0,.8);animation:popIn .4s cubic-bezier(.22,1,.36,1)}
+@keyframes popIn{from{transform:scale(.7);opacity:0}to{transform:scale(1);opacity:1}}
+.modal-icon{font-size:3.5rem;margin-bottom:16px}
+.modal-title{font-size:2rem;font-weight:900;margin-bottom:8px}
+.modal-sub{color:var(--text-dim);font-size:.9rem;margin-bottom:28px}
+.modal-btns{display:flex;gap:12px;justify-content:center}
+
+/* ===== TREE PAGE ===== */
+#treePage{display:none;position:fixed;inset:0;background:var(--bg);z-index:200;flex-direction:column}
+#treePage.show{display:flex}
+.tree-header{display:flex;align-items:center;gap:12px;padding:12px 20px;flex-shrink:0;
+  background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.tree-header h2{font-size:1rem;font-weight:900;letter-spacing:.05em;white-space:nowrap}
+.tree-meta-bar{display:flex;gap:12px;flex-wrap:wrap}
+.tm-item{display:flex;align-items:center;gap:5px;font-size:.72rem}
+.tm-label{color:var(--text-dim)}
+.tm-val{font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--green)}
+.tree-legend-bar{display:flex;gap:12px;margin-left:auto;flex-wrap:wrap;align-items:center}
+.tl-item{display:flex;align-items:center;gap:5px;font-size:.7rem;color:var(--text-dim)}
+.tl-swatch{width:11px;height:11px;border-radius:2px}
+.tree-ctrl-bar{display:flex;gap:6px}
+.tc-btn{padding:5px 12px;border:1px solid var(--border);border-radius:7px;background:var(--panel2);
+  color:var(--text-dim);cursor:pointer;font-size:.75rem;transition:all .2s;font-family:'Exo 2',sans-serif;font-weight:600}
+.tc-btn:hover{color:#fff;border-color:var(--blue-light)}
+.close-btn{background:rgba(229,62,62,.08);border-color:rgba(229,62,62,.3);color:var(--red)}
+.close-btn:hover{background:rgba(229,62,62,.2)}
+.tree-body{flex:1;position:relative;overflow:hidden}
+#treeCanvas{width:100%;height:100%;cursor:grab;display:block}
+#treeCanvas.dragging{cursor:grabbing}
+.tree-hint{position:absolute;bottom:14px;left:50%;transform:translateX(-50%);
+  background:rgba(10,15,30,.9);border:1px solid var(--border);border-radius:7px;
+  padding:6px 14px;font-size:.68rem;color:var(--text-dim);pointer-events:none;
+  font-family:'JetBrains Mono',monospace;white-space:nowrap}
+#treeTooltip{position:absolute;background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  padding:10px 14px;font-size:.73rem;pointer-events:none;display:none;z-index:300;min-width:190px;
+  box-shadow:0 8px 24px rgba(0,0,0,.6)}
+.tt-row{display:flex;justify-content:space-between;gap:14px;margin-bottom:3px}
+.tt-label{color:var(--text-dim)}
+.tt-val{font-family:'JetBrains Mono',monospace;font-weight:700}
+#noTreeMsg{position:absolute;inset:0;display:none;flex-direction:column;
+  align-items:center;justify-content:center;gap:14px;color:var(--text-dim)}
+#noTreeMsg .nt-icon{font-size:3.5rem}
+#noTreeMsg p{font-size:.9rem}
+</style>
+</head>
+<body>
+<div class="stars"></div>
+<header>
+  <h1>⚫ Connect Four AI</h1>
+  <p class="subtitle">Minimax · Alpha-Beta Pruning · Heuristic Evaluation</p>
+</header>
+
+<div class="layout">
+  <!-- LEFT -->
+  <div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">AI Configuration</div>
+      <div class="depth-control">
+        <label>Search Depth</label>
+        <input type="range" id="depthSlider" min="2" max="5" value="4"
+               oninput="document.getElementById('depthVal').textContent=this.value">
+        <span class="depth-val" id="depthVal">4</span>
+      </div>
+      <div class="algo-info">
+        <div class="algo-stat"><span class="label">Algorithm</span><span class="val">Minimax + α-β</span></div>
+        <div class="algo-stat"><span class="label">Nodes Evaluated</span><span class="val" id="nodesEval">—</span></div>
+        <div class="algo-stat"><span class="label">Branches Pruned</span><span class="val" id="branchesPruned">—</span></div>
+        <div class="algo-stat"><span class="label">Best Score</span><span class="val" id="bestScore">—</span></div>
+        <div class="algo-stat"><span class="label">Think Time</span><span class="val" id="thinkTime">—</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Heuristic Table</div>
+      <div class="heuristic-legend">
+        <div class="legend-row"><span class="legend-pattern">4 AI discs</span><span class="legend-score pos">+100</span></div>
+        <div class="legend-row"><span class="legend-pattern">3 AI + 1 empty</span><span class="legend-score pos">+10</span></div>
+        <div class="legend-row"><span class="legend-pattern">2 AI + 2 empty</span><span class="legend-score pos">+5</span></div>
+        <div class="legend-row"><span class="legend-pattern">3 Human + 1 empty</span><span class="legend-score neg">−10</span></div>
+        <div class="legend-row"><span class="legend-pattern">Center column</span><span class="legend-score pos">+3 each</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER -->
+  <div class="game-center">
+    <div class="score-bar">
+      <div class="score-player" id="humanScoreBox">
+        <div class="score-disc disc-human"></div>
+        <span class="score-name">YOU</span>
+        <span class="score-num" id="humanScore">0</span>
+      </div>
+      <div class="vs-sep">VS</div>
+      <div class="score-player" id="aiScoreBox">
+        <div class="score-disc disc-ai"></div>
+        <span class="score-name">AI</span>
+        <span class="score-num" id="aiScore">0</span>
+      </div>
+    </div>
+    <div class="col-buttons" id="colButtons"></div>
+    <div style="width:100%;max-width:500px">
+      <div class="board-wrap">
+        <div class="board-grid" id="boardGrid"></div>
+        <div class="board-legs"><div class="leg"></div><div class="leg"></div></div>
+      </div>
+    </div>
+    <div class="status-bar" id="statusBar">
+      <div class="status-dot" id="statusDot" style="background:var(--blue-light)"></div>
+      <span id="statusText">Click a column to make your move!</span>
+      <div class="thinking" id="thinkingIndicator">
+        <span>AI thinking</span><span class="think-dots"><span>.</span><span>.</span><span>.</span></span>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="resetGame()">🔄 New Game</button>
+      <button class="btn btn-secondary" onclick="toggleFirst()">🔀 <span id="firstLabel">AI Goes First</span></button>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-tree" onclick="openTreePage()">🌳 View Minimax + Alpha-Beta Tree</button>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">Move Log &amp; Explanation</div>
+      <div class="explanation-feed" id="explanationFeed">
+        <div class="exp-item info">
+          <span class="exp-tag" style="color:var(--blue-light)">SYSTEM</span>
+          <span class="exp-text">Game started. You play 🔴 Red, AI plays 🟡 Yellow. Make the first move!</span>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-bottom:14px">
+      <div class="panel-title">Board Score Over Time</div>
+      <canvas id="scoreGraph"></canvas>
+      <div class="graph-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div>AI Advantage</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>Human Advantage</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-title">Last Minimax Trace</div>
+      <div class="tree-vis" id="minimaxTrace">Waiting for AI move...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Win overlay -->
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-icon" id="modalIcon">🏆</div>
+    <div class="modal-title" id="modalTitle">You Win!</div>
+    <div class="modal-sub" id="modalSub">You connected 4 in a row!</div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="closeOverlay();resetGame()">Play Again</button>
+      <button class="btn btn-secondary" onclick="closeOverlay()">Review Board</button>
+    </div>
+  </div>
+</div>
+
+<!-- TREE FULL-SCREEN PAGE -->
+<div id="treePage">
+  <div class="tree-header">
+    <h2>🌳 Minimax + Alpha-Beta Search Tree</h2>
+    <div class="tree-meta-bar">
+      <div class="tm-item"><span class="tm-label">Move</span><span class="tm-val" id="tmMove">—</span></div>
+      <div class="tm-item"><span class="tm-label">Nodes</span><span class="tm-val" id="tmNodes">—</span></div>
+      <div class="tm-item"><span class="tm-label">Pruned</span><span class="tm-val" id="tmPruned">—</span></div>
+      <div class="tm-item"><span class="tm-label">Depth</span><span class="tm-val" id="tmDepth">—</span></div>
+    </div>
+    <div class="tree-legend-bar">
+      <div class="tl-item"><div class="tl-swatch" style="background:rgba(246,224,94,.8);border:1px solid #f6e05e"></div>MAX — AI maximizing</div>
+      <div class="tl-item"><div class="tl-swatch" style="background:rgba(229,62,62,.8);border:1px solid #e53e3e"></div>MIN — Human minimizing</div>
+      <div class="tl-item"><div class="tl-swatch" style="background:#10b981"></div>Chosen path</div>
+      <div class="tl-item"><div class="tl-swatch" style="background:#1f2937;border:1px dashed #4b5563"></div>Pruned (α≥β)</div>
+    </div>
+    <div class="tree-ctrl-bar">
+      <button class="tc-btn" onclick="zoomTree(1.25)">＋</button>
+      <button class="tc-btn" onclick="zoomTree(0.8)">－</button>
+      <button class="tc-btn" onclick="fitTree()">Fit</button>
+      <button class="tc-btn close-btn" onclick="closeTreePage()">✕ Close</button>
+    </div>
+  </div>
+  <div class="tree-body">
+    <canvas id="treeCanvas"></canvas>
+    <div id="noTreeMsg">
+      <div class="nt-icon">🤖</div>
+      <p>Make your first move — the AI will build the search tree!</p>
+    </div>
+    <div class="tree-hint">Scroll to zoom &nbsp;·&nbsp; Drag to pan &nbsp;·&nbsp; Hover nodes for details</div>
+    <div id="treeTooltip"></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   GAME ENGINE
+================================================================ */
+const ROWS=6,COLS=7,HUMAN=1,AI=2,EMPTY=0;
+let board,currentPlayer,gameOver,aiGoesFirst=false;
+let humanScore=0,aiScore=0,scoreHistory=[],moveCount=0;
+let nodesCount=0,pruneCount=0;
+let lastTreeRoot=null,lastTreeMeta={nodes:0,pruned:0,depth:0,move:0};
+let minimaxLog=[];
+
+function initBoard(){return Array.from({length:ROWS},()=>Array(COLS).fill(EMPTY))}
+
+function resetGame(){
+  board=initBoard();gameOver=false;scoreHistory=[];nodesCount=0;pruneCount=0;lastTreeRoot=null;
+  renderBoard();renderColButtons();updateScoreGraph();
+  setStatus('human','Click a column to make your move!');
+  ['nodesEval','branchesPruned','bestScore','thinkTime'].forEach(id=>document.getElementById(id).textContent='—');
+  document.getElementById('minimaxTrace').textContent='Waiting for AI move...';
+  addExp('info','SYSTEM','New game! You are 🔴 Red, AI is 🟡 Yellow.');
+  updateActivePlayer(true,false);
+  if(aiGoesFirst){currentPlayer=AI;updateActivePlayer(false,true);setTimeout(doAIMove,500)}
+  else currentPlayer=HUMAN;
+}
+
+function toggleFirst(){
+  aiGoesFirst=!aiGoesFirst;
+  document.getElementById('firstLabel').textContent=aiGoesFirst?'You Go First':'AI Goes First';
+  resetGame();
+}
+function getDepth(){return parseInt(document.getElementById('depthSlider').value)}
+
+/* ---- Board helpers ---- */
+function isValidCol(col){return board[0][col]===EMPTY}
+function getNextRow(b,col){for(let r=ROWS-1;r>=0;r--)if(b[r][col]===EMPTY)return r;return-1}
+function dropPiece(b,row,col,piece){b[row][col]=piece}
+function checkWin(b,piece){
+  for(let r=0;r<ROWS;r++)for(let c=0;c<=COLS-4;c++)if([0,1,2,3].every(i=>b[r][c+i]===piece))return true;
+  for(let r=0;r<=ROWS-4;r++)for(let c=0;c<COLS;c++)if([0,1,2,3].every(i=>b[r+i][c]===piece))return true;
+  for(let r=3;r<ROWS;r++)for(let c=0;c<=COLS-4;c++)if([0,1,2,3].every(i=>b[r-i][c+i]===piece))return true;
+  for(let r=0;r<=ROWS-4;r++)for(let c=0;c<=COLS-4;c++)if([0,1,2,3].every(i=>b[r+i][c+i]===piece))return true;
+  return false;
+}
+function getWinCells(b,piece){
+  for(let r=0;r<ROWS;r++)for(let c=0;c<=COLS-4;c++)if([0,1,2,3].every(i=>b[r][c+i]===piece))return[[r,c],[r,c+1],[r,c+2],[r,c+3]];
+  for(let r=0;r<=ROWS-4;r++)for(let c=0;c<COLS;c++)if([0,1,2,3].every(i=>b[r+i][c]===piece))return[[r,c],[r+1,c],[r+2,c],[r+3,c]];
+  for(let r=3;r<ROWS;r++)for(let c=0;c<=COLS-4;c++)if([0,1,2,3].every(i=>b[r-i][c+i]===piece))return[[r,c],[r-1,c+1],[r-2,c+2],[r-3,c+3]];
+  for(let r=0;r<=ROWS-4;r++)for(let c=0;c<=COLS-4;c++)if([0,1,2,3].every(i=>b[r+i][c+i]===piece))return[[r,c],[r+1,c+1],[r+2,c+2],[r+3,c+3]];
+  return[];
+}
+function isBoardFull(b){return b[0].every(c=>c!==EMPTY)}
+function getValidMoves(b){const m=[];[3,2,4,1,5,0,6].forEach(c=>{if(b[0][c]===EMPTY)m.push(c)});return m}
+
+/* ---- Heuristic ---- */
+function scoreWindow(w,piece){
+  const opp=piece===AI?HUMAN:AI;
+  const ai=w.filter(x=>x===piece).length,em=w.filter(x=>x===EMPTY).length,op=w.filter(x=>x===opp).length;
+  let s=0;
+  if(ai===4)s+=100;else if(ai===3&&em===1)s+=10;else if(ai===2&&em===2)s+=5;
+  if(op===3&&em===1)s-=10;return s;
+}
+function evalBoard(b){
+  let s=b.map(r=>r[3]).filter(x=>x===AI).length*3;
+  for(let r=0;r<ROWS;r++)for(let c=0;c<=COLS-4;c++)s+=scoreWindow([b[r][c],b[r][c+1],b[r][c+2],b[r][c+3]],AI);
+  for(let r=0;r<=ROWS-4;r++)for(let c=0;c<COLS;c++)s+=scoreWindow([b[r][c],b[r+1][c],b[r+2][c],b[r+3][c]],AI);
+  for(let r=3;r<ROWS;r++)for(let c=0;c<=COLS-4;c++)s+=scoreWindow([b[r][c],b[r-1][c+1],b[r-2][c+2],b[r-3][c+3]],AI);
+  for(let r=0;r<=ROWS-4;r++)for(let c=0;c<=COLS-4;c++)s+=scoreWindow([b[r][c],b[r+1][c+1],b[r+2][c+2],b[r+3][c+3]],AI);
+  return s;
+}
+
+/* ---- Minimax with full tree recording ---- */
+let nodeIdCounter=0;
+
+function minimaxRec(b,depth,alpha,beta,maximizing){
+  nodeIdCounter++;nodesCount++;
+  const myId=nodeIdCounter;
+  const aiWin=checkWin(b,AI),humWin=checkWin(b,HUMAN),full=isBoardFull(b);
+
+  let termReason='';
+  if(aiWin)termReason='AI WIN';
+  else if(humWin)termReason='HUMAN WIN';
+  else if(full)termReason='DRAW';
+  else if(depth===0)termReason='DEPTH';
+  const terminal=!!termReason;
+
+  const node={id:myId,col:null,depth,maximizing,
+    alphaIn:alpha,betaIn:beta,alpha,beta,
+    score:null,terminal,termReason,
+    children:[],chosen:false,pruned:false};
+
+  if(terminal){
+    node.score=aiWin?100000+depth:humWin?(-100000-depth):evalBoard(b);
+    return node;
+  }
+
+  const moves=getValidMoves(b);
+  let best=maximizing?-Infinity:Infinity;
+  let pruned=false;
+
+  for(const col of moves){
+    const row=getNextRow(b,col);
+    const nb=b.map(r=>[...r]);
+    dropPiece(nb,row,col,maximizing?AI:HUMAN);
+    const child=minimaxRec(nb,depth-1,alpha,beta,!maximizing);
+    child.col=col;
+    node.children.push(child);
+
+    if(maximizing){
+      if(child.score>best)best=child.score;
+      if(best>alpha)alpha=best;
+    }else{
+      if(child.score<best)best=child.score;
+      if(best<beta)beta=best;
+    }
+    node.alpha=alpha;node.beta=beta;
+
+    if(alpha>=beta){
+      pruneCount++;
+      // stub remaining moves as pruned placeholders
+      const rem=moves.slice(moves.indexOf(col)+1);
+      rem.forEach(rc=>{
+        node.children.push({id:++nodeIdCounter,col:rc,depth:depth-1,maximizing:!maximizing,
+          alphaIn:alpha,betaIn:beta,alpha,beta,score:null,terminal:false,termReason:'PRUNED',
+          children:[],chosen:false,pruned:true});
+      });
+      pruned=true;break;
+    }
+  }
+  node.score=best;
+  return node;
+}
+
+function getBestMove(b,depth){
+  minimaxLog=[];nodesCount=0;pruneCount=0;nodeIdCounter=0;
+  const moves=getValidMoves(b);
+  let bestScore=-Infinity,bestCol=moves[0];
+
+  // Build root
+  const root={id:0,col:'ROOT',depth,maximizing:true,
+    alphaIn:-Infinity,betaIn:Infinity,alpha:-Infinity,beta:Infinity,
+    score:null,terminal:false,termReason:'',children:[],chosen:true,pruned:false};
+
+  for(const col of moves){
+    const row=getNextRow(b,col);
+    const nb=b.map(r=>[...r]);
+    dropPiece(nb,row,col,AI);
+    const child=minimaxRec(nb,depth-1,-Infinity,Infinity,false);
+    child.col=col;
+    root.children.push(child);
+    minimaxLog.push({col,score:child.score});
+    if(child.score>bestScore){bestScore=child.score;bestCol=col}
+  }
+  root.score=bestScore;
+  // Mark chosen path
+  markChosen(root,bestCol);
+  lastTreeRoot=root;
+  return{col:bestCol,score:bestScore};
+}
+
+function markChosen(node,targetCol){
+  if(!node||!node.children)return;
+  const child=node.children.find(c=>c.col===targetCol&&!c.pruned);
+  if(!child)return;
+  child.chosen=true;
+  if(child.children&&child.children.length>0){
+    const valid=child.children.filter(c=>!c.pruned&&c.score!==null);
+    if(!valid.length)return;
+    const next=child.maximizing
+      ?valid.reduce((a,b)=>b.score>a.score?b:a)
+      :valid.reduce((a,b)=>b.score<a.score?b:a);
+    next.chosen=true;
+    markChosen(child,next.col);
+  }
+}
+
+/* ---- Game flow ---- */
+function humanMove(col){
+  if(gameOver||currentPlayer!==HUMAN||!isValidCol(col))return;
+  moveCount++;
+  const row=getNextRow(board,col);
+  dropPiece(board,row,col,HUMAN);
+  renderBoard();
+  addExp('human-move','HUMAN MOVE',`Column ${col+1}, row ${row+1}.`);
+  scoreHistory.push(evalBoard(board));updateScoreGraph();
+  if(checkWin(board,HUMAN)){
+    humanScore++;document.getElementById('humanScore').textContent=humanScore;
+    highlightWin(HUMAN);setStatus('win','🎉 You Win!');
+    addExp('win','RESULT','Human connected 4! You win!');
+    showModal('🏆','You Win!','You connected 4 in a row!','var(--red)');
+    gameOver=true;disableCols();return;
+  }
+  if(isBoardFull(board)){setStatus('draw',"Draw!");showModal('🤝',"It's a Draw!",'Board full!','var(--blue-light)');gameOver=true;disableCols();return;}
+  currentPlayer=AI;updateActivePlayer(false,true);disableCols();setTimeout(doAIMove,80);
+}
+
+function doAIMove(){
+  if(gameOver)return;
+  const depth=getDepth();
+  setStatus('ai','');
+  document.getElementById('thinkingIndicator').classList.add('show');
+  document.getElementById('statusText').style.display='none';
+  setTimeout(()=>{
+    const t0=performance.now();
+    const{col,score}=getBestMove(board,depth);
+    const ms=(performance.now()-t0).toFixed(0);
+    moveCount++;
+    lastTreeMeta={nodes:nodesCount,pruned:pruneCount,depth,move:moveCount};
+
+    document.getElementById('nodesEval').textContent=nodesCount.toLocaleString();
+    document.getElementById('branchesPruned').textContent=pruneCount.toLocaleString();
+    document.getElementById('bestScore').textContent=score>50000?'∞WIN':score<-50000?'-∞LOSS':score;
+    document.getElementById('thinkTime').textContent=ms+' ms';
+    document.getElementById('thinkingIndicator').classList.remove('show');
+    document.getElementById('statusText').style.display='';
+
+    const trace=minimaxLog.map(({col:c,score:s})=>`C${c+1}: ${s>50000?'+∞WIN':s<-50000?'-∞LOSS':s}${c===col?' ←CHOSEN':''}`).join('\n');
+    document.getElementById('minimaxTrace').textContent=`Depth:${depth}  Nodes:${nodesCount}  Pruned:${pruneCount}\n\n${trace}`;
+
+    const row=getNextRow(board,col);
+    dropPiece(board,row,col,AI);renderBoard();
+
+    let reason=score>50000?'Found guaranteed win!'
+      :score<-50000?'Trying to delay loss.'
+      :minimaxLog.some(x=>x.score<-5000)?`Blocking your threat! Score:${score}.`
+      :`Best heuristic move. Score:${score}. Evaluated ${nodesCount} nodes, pruned ${pruneCount}.`;
+
+    addExp('ai-move','AI MOVE',`Col ${col+1}: ${reason}`);
+    scoreHistory.push(evalBoard(board));updateScoreGraph();
+
+    // Refresh tree page if open
+    if(document.getElementById('treePage').classList.contains('show')){
+      updateTreeMeta();fitTree();renderTreeCanvas();
+    }
+
+    if(checkWin(board,AI)){
+      aiScore++;document.getElementById('aiScore').textContent=aiScore;
+      highlightWin(AI);setStatus('win','🤖 AI Wins!');
+      addExp('win','RESULT','AI connected 4! AI wins!');
+      showModal('🤖','AI Wins!',`Scored ${score}!`,'var(--yellow)');
+      gameOver=true;return;
+    }
+    if(isBoardFull(board)){setStatus('draw',"Draw!");showModal('🤝',"Draw!",'Board full!','var(--blue-light)');gameOver=true;return;}
+    currentPlayer=HUMAN;updateActivePlayer(true,false);enableCols();setStatus('human','Your turn! Pick a column.');
+  },10);
+}
+
+/* ---- Render board ---- */
+function renderBoard(){
+  const g=document.getElementById('boardGrid');g.innerHTML='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const el=document.createElement('div');el.className='cell';
+    if(board[r][c]===HUMAN)el.classList.add('human');
+    else if(board[r][c]===AI)el.classList.add('ai');
+    el.id=`cell-${r}-${c}`;g.appendChild(el);
+  }
+}
+function renderColButtons(){
+  const ct=document.getElementById('colButtons');ct.innerHTML='';
+  for(let c=0;c<COLS;c++){
+    const b=document.createElement('button');b.className='col-btn';
+    b.innerHTML='<span>▼</span>';b.id=`cb-${c}`;
+    b.onclick=(()=>{const col=c;return()=>humanMove(col)})();
+    ct.appendChild(b);
+  }
+}
+function disableCols(){for(let c=0;c<COLS;c++){const b=document.getElementById(`cb-${c}`);if(b)b.disabled=true}}
+function enableCols(){for(let c=0;c<COLS;c++){const b=document.getElementById(`cb-${c}`);if(b)b.disabled=!isValidCol(c)}}
+function highlightWin(piece){getWinCells(board,piece).forEach(([r,c])=>{const e=document.getElementById(`cell-${r}-${c}`);if(e)e.classList.add('win-cell')});disableCols()}
+function setStatus(type,msg){
+  const dot=document.getElementById('statusDot');
+  document.getElementById('statusText').textContent=msg;
+  dot.style.background=type==='human'?'var(--red)':type==='ai'?'var(--yellow)':type==='win'?'var(--green)':type==='draw'?'var(--text-dim)':'var(--blue-light)';
+}
+function updateActivePlayer(h,a){
+  document.getElementById('humanScoreBox').classList.toggle('active',h);
+  document.getElementById('aiScoreBox').classList.toggle('active',a);
+}
+function addExp(type,tag,text){
+  const feed=document.getElementById('explanationFeed');
+  const item=document.createElement('div');item.className=`exp-item ${type}`;
+  const tc=type==='ai-move'?'var(--yellow)':type==='human-move'?'var(--red)':type==='win'?'var(--green)':'var(--blue-light)';
+  item.innerHTML=`<span class="exp-tag" style="color:${tc}">${tag}</span><span class="exp-text">${text}</span>`;
+  feed.appendChild(item);feed.scrollTop=feed.scrollHeight;
+  while(feed.children.length>30)feed.removeChild(feed.firstChild);
+}
+function showModal(icon,title,sub,color){
+  document.getElementById('modalIcon').textContent=icon;
+  document.getElementById('modalTitle').textContent=title;document.getElementById('modalTitle').style.color=color;
+  document.getElementById('modalSub').textContent=sub;document.getElementById('overlay').classList.add('show');
+}
+function closeOverlay(){document.getElementById('overlay').classList.remove('show')}
+
+/* ---- Score graph ---- */
+function updateScoreGraph(){
+  const cv=document.getElementById('scoreGraph');const ctx=cv.getContext('2d');
+  const W=cv.offsetWidth,H=cv.offsetHeight;cv.width=W;cv.height=H;ctx.clearRect(0,0,W,H);
+  if(scoreHistory.length<2){
+    ctx.fillStyle='rgba(100,116,139,.3)';ctx.font='12px JetBrains Mono';ctx.textAlign='center';
+    ctx.fillText('Score graph appears after moves',W/2,H/2);return;
+  }
+  const max=Math.max(...scoreHistory.map(Math.abs),50);
+  const pad=20,gW=W-pad*2,gH=H-pad*2;
+  ctx.strokeStyle='rgba(30,58,110,.5)';ctx.lineWidth=1;
+  [-1,-.5,0,.5,1].forEach(f=>{const y=pad+gH/2-f*gH/2;ctx.beginPath();ctx.moveTo(pad,y);ctx.lineTo(W-pad,y);ctx.stroke()});
+  const zy=pad+gH/2;ctx.strokeStyle='rgba(255,255,255,.15)';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad,zy);ctx.lineTo(W-pad,zy);ctx.stroke();
+  const toX=i=>pad+(i/(scoreHistory.length-1))*gW;
+  const toY=s=>pad+gH/2-(s/max)*gH/2;
+  ctx.beginPath();
+  scoreHistory.forEach((s,i)=>i===0?ctx.moveTo(toX(i),toY(s)):ctx.lineTo(toX(i),toY(s)));
+  ctx.lineTo(toX(scoreHistory.length-1),zy);ctx.lineTo(pad,zy);ctx.closePath();
+  const last=scoreHistory[scoreHistory.length-1];
+  const g=ctx.createLinearGradient(0,0,0,H);
+  if(last>=0){g.addColorStop(0,'rgba(246,224,94,.3)');g.addColorStop(1,'rgba(246,224,94,0)')}
+  else{g.addColorStop(0,'rgba(229,62,62,0)');g.addColorStop(1,'rgba(229,62,62,.3)')}
+  ctx.fillStyle=g;ctx.fill();
+  ctx.beginPath();
+  scoreHistory.forEach((s,i)=>i===0?ctx.moveTo(toX(i),toY(s)):ctx.lineTo(toX(i),toY(s)));
+  ctx.strokeStyle=last>=0?'#f6e05e':'#e53e3e';ctx.lineWidth=2;ctx.stroke();
+  scoreHistory.forEach((s,i)=>{ctx.beginPath();ctx.arc(toX(i),toY(s),3,0,Math.PI*2);ctx.fillStyle=s>=0?'#f6e05e':'#e53e3e';ctx.fill()});
+}
+
+/* ================================================================
+   TREE VISUALIZER
+================================================================ */
+let TC,TCX; // canvas & context
+let treeScale=1,treeOffX=0,treeOffY=50;
+let dragActive=false,dragX0=0,dragY0=0,offX0=0,offY0=0;
+let nodeHits=[]; // [{node,wx,wy}] world coords
+
+const NR=20; // node radius
+const LH=86; // level height
+let xCounter=0;
+
+function openTreePage(){
+  const page=document.getElementById('treePage');
+  page.classList.add('show');
+  TC=document.getElementById('treeCanvas');
+  TCX=TC.getContext('2d');
+  resizeTC();
+  if(!lastTreeRoot){
+    document.getElementById('noTreeMsg').style.display='flex';
+    TC.style.visibility='hidden';
+  }else{
+    document.getElementById('noTreeMsg').style.display='none';
+    TC.style.visibility='visible';
+    updateTreeMeta();fitTree();renderTreeCanvas();
+  }
+}
+function closeTreePage(){document.getElementById('treePage').classList.remove('show')}
+function resizeTC(){
+  const b=TC.parentElement;TC.width=b.clientWidth;TC.height=b.clientHeight;
+}
+function updateTreeMeta(){
+  document.getElementById('tmMove').textContent=lastTreeMeta.move||'—';
+  document.getElementById('tmNodes').textContent=(lastTreeMeta.nodes||0).toLocaleString();
+  document.getElementById('tmPruned').textContent=(lastTreeMeta.pruned||0).toLocaleString();
+  document.getElementById('tmDepth').textContent=lastTreeMeta.depth||'—';
+}
+
+/* Knuth-style layout: assign _x leaf index, _w subtree width */
+function layout(node){
+  xCounter=0;
+  assignX(node);
+}
+function assignX(node){
+  if(!node.children||node.children.length===0){node._x=xCounter++;node._w=1;return}
+  node.children.forEach(c=>assignX(c));
+  node._w=Math.max(1,node.children.reduce((s,c)=>s+c._w,0));
+  node._x=(node.children[0]._x+node.children[node.children.length-1]._x)/2;
+}
+
+function fitTree(){
+  if(!lastTreeRoot)return;
+  layout(lastTreeRoot);
+  const xSpan=lastTreeRoot._w;
+  const totalD=lastTreeMeta.depth+1;
+  const xpx=xSpan*(NR*2.6);
+  const ypx=totalD*LH+NR*2;
+  const W=TC.width,H=TC.height;
+  treeScale=Math.min(W/(xpx+40),H/(ypx+40),1);
+  treeOffX=W/2;
+  treeOffY=NR+20;
+}
+function zoomTree(f){treeScale=Math.max(.04,Math.min(8,treeScale*f));renderTreeCanvas()}
+
+/* ---- Render ---- */
+function renderTreeCanvas(){
+  if(!TC||!TCX)return;
+  TCX.clearRect(0,0,TC.width,TC.height);
+  nodeHits=[];
+  if(!lastTreeRoot)return;
+  layout(lastTreeRoot);
+  const xSpan=lastTreeRoot._w;
+  const xScale=NR*2.6;
+  const cxWorld=-xSpan*xScale/2; // left edge offset so tree is centered at world 0,0
+
+  TCX.save();
+  TCX.translate(treeOffX,treeOffY);
+  TCX.scale(treeScale,treeScale);
+
+  drawNode(lastTreeRoot,0,cxWorld,xScale);
+
+  TCX.restore();
+}
+
+function fmtScore(s){
+  if(s===null)return'?';
+  if(s>50000)return'+∞';
+  if(s<-50000)return'-∞';
+  return String(s);
+}
+
+function nodeColor(node){
+  if(node.pruned)return{fill:'rgba(17,24,39,0.8)',stroke:'#374151'};
+  if(node.score===null)return{fill:'rgba(30,41,59,0.8)',stroke:'#475569'};
+  // max = yellow tones, min = red tones; intensity by absolute score
+  const clamp=v=>Math.max(0,Math.min(1,v));
+  if(node.maximizing){
+    const t=clamp((node.score+200)/400);
+    const a=0.15+t*0.3;
+    return{fill:`rgba(246,224,94,${a})`,stroke:node.chosen?'#10b981':'#f6e05e'};
+  }else{
+    const t=clamp((-node.score+200)/400);
+    const a=0.15+t*0.3;
+    return{fill:`rgba(229,62,62,${a})`,stroke:node.chosen?'#10b981':'#e53e3e'};
+  }
+}
+
+function drawNode(node,depth,cxWorld,xScale){
+  const wx=cxWorld+node._x*xScale;
+  const wy=depth*LH;
+
+  // Children first (edges beneath nodes)
+  if(node.children){
+    node.children.forEach(child=>{
+      const cx2=cxWorld+child._x*xScale;
+      const cy2=(depth+1)*LH;
+      TCX.beginPath();
+      TCX.moveTo(wx,wy+NR);
+      TCX.bezierCurveTo(wx,wy+NR+LH*.35,cx2,cy2-NR-LH*.35,cx2,cy2-NR);
+      if(child.pruned){
+        TCX.setLineDash([5,4]);TCX.strokeStyle='rgba(55,65,81,0.6)';TCX.lineWidth=1;
+      }else if(child.chosen){
+        TCX.setLineDash([]);TCX.strokeStyle='#10b981';TCX.lineWidth=2.5;
+      }else{
+        TCX.setLineDash([]);
+        TCX.strokeStyle=child.maximizing?'rgba(246,224,94,0.25)':'rgba(229,62,62,0.25)';
+        TCX.lineWidth=1.2;
+      }
+      TCX.stroke();TCX.setLineDash([]);
+      drawNode(child,depth+1,cxWorld,xScale);
+    });
+  }
+
+  /* Node circle */
+  const{fill,stroke}=nodeColor(node);
+  // Chosen glow
+  if(node.chosen){
+    TCX.beginPath();TCX.arc(wx,wy,NR+6,0,Math.PI*2);
+    TCX.fillStyle='rgba(16,185,129,0.15)';TCX.fill();
+  }
+  TCX.beginPath();TCX.arc(wx,wy,NR,0,Math.PI*2);
+  TCX.fillStyle=fill;
+  TCX.strokeStyle=stroke;TCX.lineWidth=node.chosen?2.5:1.5;
+  TCX.fill();TCX.stroke();
+
+  /* Score label inside node */
+  TCX.font=`bold ${node.pruned?8:9}px JetBrains Mono,monospace`;
+  TCX.textAlign='center';TCX.textBaseline='middle';
+  TCX.fillStyle=node.pruned?'#4b5563':node.score!==null?(node.score>0?'#86efac':node.score<0?'#fca5a5':'#94a3b8'):'#475569';
+  const sl=fmtScore(node.score);
+  TCX.fillText(sl,wx,wy+(node.col!==null&&node.col!=='ROOT'?2:0));
+
+  /* Column label above */
+  if(node.col!==null&&node.col!=='ROOT'){
+    TCX.font='8px JetBrains Mono,monospace';
+    TCX.fillStyle=node.pruned?'#374151':'rgba(148,163,184,0.85)';
+    TCX.fillText(`C${node.col+1}`,wx,wy-NR-7);
+  }else if(node.col==='ROOT'){
+    TCX.font='bold 8px JetBrains Mono,monospace';
+    TCX.fillStyle='#f6e05e';TCX.fillText('ROOT',wx,wy-NR-7);
+  }
+
+  /* MAX/MIN badge below */
+  if(!node.pruned){
+    TCX.font='7px JetBrains Mono,monospace';
+    TCX.fillStyle=node.maximizing?'rgba(246,224,94,0.55)':'rgba(229,62,62,0.55)';
+    TCX.fillText(node.maximizing?'MAX':'MIN',wx,wy+NR+8);
+  }
+
+  /* α β labels left side */
+  if(!node.pruned&&!node.terminal&&node.children&&node.children.length){
+    const a=fmtScore(node.alpha),be=fmtScore(node.beta);
+    TCX.font='6.5px JetBrains Mono,monospace';
+    TCX.fillStyle='rgba(167,139,250,0.85)';
+    TCX.textAlign='right';
+    TCX.fillText(`α:${a}`,wx-NR-2,wy-5);
+    TCX.fillStyle='rgba(244,114,182,0.85)';
+    TCX.fillText(`β:${be}`,wx-NR-2,wy+6);
+    TCX.textAlign='center';
+  }
+
+  // Store for hit-test
+  nodeHits.push({node,wx,wy});
+}
+
+/* ---- Pan/Zoom/Tooltip ---- */
+const treeBody=document.querySelector('.tree-body');
+
+document.getElementById('treeCanvas').addEventListener('mousedown',e=>{
+  dragActive=true;dragX0=e.clientX;dragY0=e.clientY;offX0=treeOffX;offY0=treeOffY;
+  e.currentTarget.classList.add('dragging');
+});
+window.addEventListener('mouseup',()=>{
+  dragActive=false;
+  const tc=document.getElementById('treeCanvas');if(tc)tc.classList.remove('dragging');
+});
+window.addEventListener('mousemove',e=>{
+  if(dragActive){
+    treeOffX=offX0+(e.clientX-dragX0);treeOffY=offY0+(e.clientY-dragY0);
+    renderTreeCanvas();
+  }
+  // Tooltip
+  const page=document.getElementById('treePage');
+  if(!lastTreeRoot||!page.classList.contains('show'))return;
+  const tc=document.getElementById('treeCanvas');
+  const rect=tc.getBoundingClientRect();
+  // Convert screen to world
+  const mx=(e.clientX-rect.left-treeOffX)/treeScale;
+  const my=(e.clientY-rect.top-treeOffY)/treeScale;
+  const hit=nodeHits.find(({wx,wy})=>Math.hypot(mx-wx,my-wy)<=NR+3);
+  const tt=document.getElementById('treeTooltip');
+  if(hit&&!hit.node.pruned){
+    const n=hit.node;
+    tt.style.display='block';
+    tt.style.left=(e.clientX-rect.left+16)+'px';
+    tt.style.top=Math.max(8,e.clientY-rect.top-80)+'px';
+    const scoreStr=fmtScore(n.score);
+    const aStr=fmtScore(n.alpha),bStr=fmtScore(n.beta);
+    const aInStr=fmtScore(n.alphaIn),bInStr=fmtScore(n.betaIn);
+    tt.innerHTML=`
+      <div class="tt-row"><span class="tt-label">Column</span><span class="tt-val">${n.col==='ROOT'?'Root (AI turn)':'C'+(n.col+1)}</span></div>
+      <div class="tt-row"><span class="tt-label">Player</span><span class="tt-val" style="color:${n.maximizing?'#f6e05e':'#e53e3e'}">${n.maximizing?'MAX — AI':'MIN — Human'}</span></div>
+      <div class="tt-row"><span class="tt-label">Depth left</span><span class="tt-val">${n.depth}</span></div>
+      <div class="tt-row"><span class="tt-label">Score</span><span class="tt-val" style="color:${n.score>0?'#86efac':n.score<0?'#fca5a5':'#94a3b8'}">${scoreStr}</span></div>
+      <div class="tt-row"><span class="tt-label">α (in→out)</span><span class="tt-val" style="color:#a78bfa">${aInStr} → ${aStr}</span></div>
+      <div class="tt-row"><span class="tt-label">β (in→out)</span><span class="tt-val" style="color:#f472b6">${bInStr} → ${bStr}</span></div>
+      ${n.termReason?`<div class="tt-row"><span class="tt-label">Terminal</span><span class="tt-val" style="color:#fbbf24">${n.termReason}</span></div>`:''}
+      ${n.chosen?'<div style="color:#10b981;font-weight:700;margin-top:5px">✓ AI CHOSE THIS PATH</div>':''}
+    `;
+  }else{tt.style.display='none'}
+});
+
+document.getElementById('treeCanvas').addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.15:0.87;
+  treeScale=Math.max(.04,Math.min(8,treeScale*f));
+  renderTreeCanvas();
+},{passive:false});
+
+window.addEventListener('resize',()=>{
+  if(document.getElementById('treePage').classList.contains('show')){resizeTC();renderTreeCanvas()}
+  updateScoreGraph();
+});
+
+/* ---- Init ---- */
+resetGame();
+</script>
+</body>
+</html>
